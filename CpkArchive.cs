@@ -53,7 +53,7 @@ namespace Cpk.Net
         /// </summary>
         /// <returns>Root level CpkEntry nodes</returns>
         /// <exception cref="InvalidDataException">Throw if file is not valid CPK archive</exception>
-        public async Task Load()
+        public async Task LoadAsync()
         {
             await using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
 
@@ -148,7 +148,7 @@ namespace Cpk.Net
         {
             if (!_loaded)
             {
-                throw new Exception($"Cpk file not loaded yet. Please call {nameof(Load)} method before using.");
+                throw new Exception($"Cpk file not loaded yet. Please call {nameof(LoadAsync)} method before using.");
             }
         }
 

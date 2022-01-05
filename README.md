@@ -19,7 +19,7 @@ const string CpkPath = "...";
 const string VirtualFilePath = "..."; // Virtualized/relative file path within CPK archive
 
 var cpk = new CpkArchive(CpkPath);
-await cpk.Load();
+await cpk.LoadAsync();
 await using var stream = cpk.Open(VirtualFilePath, out uint size);
 ...
 ```
@@ -33,7 +33,7 @@ const string CpkPath = "...";
 const string OutputFolderPath = "...";
 
 var cpk = new CpkArchive(CpkPath);
-await cpk.Load();
+await cpk.LoadAsync();
 var rootNodes = await cpk.GetRootEntries();
 
 Unpack(rootNodes, OutputFolderPath);
