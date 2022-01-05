@@ -36,6 +36,8 @@ namespace Cpk.Net
 
         private readonly CrcHash _crcHash = new CrcHash();
 
+        private bool _loaded;
+
         public CpkArchive(string cpkFilePath)
         {
             _filePath = cpkFilePath;
@@ -45,12 +47,13 @@ namespace Cpk.Net
         }
 
         /// <summary>
-        /// Load Cpk file from file system, build a tree structure
-        /// and return it's root nodes in CpkEntry format
+        /// Load the CPK file from file system.
+        /// This method should be called before using any other file
+        /// operations.
         /// </summary>
         /// <returns>Root level CpkEntry nodes</returns>
         /// <exception cref="InvalidDataException">Throw if file is not valid CPK archive</exception>
-        public async Task<IList<CpkEntry>> Load()
+        public async Task Load()
         {
             await using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
 
@@ -69,6 +72,17 @@ namespace Cpk.Net
             await Task.Run(BuildCrcIndexMap);
             await BuildFileNameMap();
 
+            _loaded = true;
+        }
+
+        /// <summary>
+        /// Build a tree structure map of the internal files
+        /// and return the root nodes in CpkEntry format
+        /// </summary>
+        /// <returns>Root level CpkEntry nodes</returns>
+        public async Task<IList<CpkEntry>> GetRootEntries()
+        {
+            CheckIfArchiveLoaded();
             return await Task.FromResult(GetChildren(RootCrc).ToList());
         }
 
@@ -83,6 +97,8 @@ namespace Cpk.Net
         /// <exception cref="InvalidOperationException">Throw if given file path is a directory</exception>
         public Stream Open(string fileVirtualPath, out uint size)
         {
+            CheckIfArchiveLoaded();
+
             var crc = _crcHash.ToCrc32Hash(fileVirtualPath);
             try
             {
@@ -105,6 +121,8 @@ namespace Cpk.Net
         /// <exception cref="InvalidOperationException">Throw if given CRC is a directory</exception>
         public Stream Open(uint crc, out uint size)
         {
+            CheckIfArchiveLoaded();
+
             if (!_crcToTableIndexMap.ContainsKey(crc))
             {
                 throw new ArgumentException("CRC {crc} not found.");
@@ -124,6 +142,14 @@ namespace Cpk.Net
 
             if (table.IsCompressed()) return new LzoStream(stream, CompressionMode.Decompress);
             else return stream;
+        }
+
+        private void CheckIfArchiveLoaded()
+        {
+            if (!_loaded)
+            {
+                throw new Exception($"Cpk file not loaded yet. Please call {nameof(Load)} method before using.");
+            }
         }
 
         private static bool IsValidCpkHeader(CpkHeader header)
