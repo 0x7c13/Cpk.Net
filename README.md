@@ -1,7 +1,7 @@
 # About Cpk.Net
 
-This is an implementation of the CPK file reader in C# using `.NET Standard 2.1`.
-CPK is a file format used to store game assets in the game Pal3(仙剑奇侠传三) and Pal3a(仙剑奇侠传3外传-问情篇) created by Softstar Technology (Shanghai) Co., Ltd.
+This is an implementation of the CPack file reader in C# using `.NET Standard 2.1`.
+CPack(.cpk) is a file format used to store game assets in the game Pal3(仙剑奇侠传三) and Pal3a(仙剑奇侠传3外传-问情篇) created by Softstar Technology (Shanghai) Co., Ltd.
 
 ## How to build Cpk.Net?
 ```console
