@@ -28,8 +28,6 @@ namespace Cpk.Net
         private const int RootCrc = 0;
 
         private readonly string _filePath;
-
-        private CpkHeader _header;
         private readonly CpkTable[] _tables = new CpkTable[CpkDefaultMaxNumOfFile];
 
         private readonly Dictionary<uint, byte[]> _fileNameMap = new Dictionary<uint, byte[]>();
@@ -47,8 +45,8 @@ namespace Cpk.Net
         }
 
         /// <summary>
-        /// Load Cpk file from filesystem and store a copy of the
-        /// header and index table.
+        /// Load Cpk file from file system, build a tree structure
+        /// and return it's root nodes in CpkEntry format
         /// </summary>
         /// <returns>Root level CpkEntry nodes</returns>
         /// <exception cref="InvalidDataException">Throw if file is not valid CPK archive</exception>
@@ -56,14 +54,14 @@ namespace Cpk.Net
         {
             await using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
 
-            _header = await Utility.ReadStruct<CpkHeader>(stream);
+            var header = await Utility.ReadStruct<CpkHeader>(stream);
 
-            if (!IsValidCpkHeader(_header))
+            if (!IsValidCpkHeader(header))
             {
                 throw new InvalidDataException($"File: {_filePath} is not a valid CPK file.");
             }
 
-            for (var i = 0; i < _header.MaxFileNum; i++)
+            for (var i = 0; i < header.MaxFileNum; i++)
             {
                 _tables[i] = await Utility.ReadStruct<CpkTable>(stream);
             }
