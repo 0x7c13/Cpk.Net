@@ -19,26 +19,27 @@ namespace Cpk.Net
         public string VirtualPath { get; }
 
         /// <summary>
-        /// CpkTable struct
+        /// True if current entry is a directory
+        /// False if current entry is a file
         /// </summary>
-        public CpkTable Table { get; }
+        public bool IsDirectory { get; }
 
         /// <summary>
         /// Non-empty child nodes if current CpkEntry is a directory
         /// </summary>
         public IList<CpkEntry> Children { get; }
 
-        public CpkEntry(string virtualPath, CpkTable table)
+        public CpkEntry(string virtualPath, bool isDirectory)
         {
             VirtualPath = virtualPath;
-            Table = table;
+            IsDirectory = isDirectory;
             Children = new List<CpkEntry>();
         }
 
-        public CpkEntry(string virtualPath, CpkTable table, IList<CpkEntry> children)
+        public CpkEntry(string virtualPath, bool isDirectory, IList<CpkEntry> children)
         {
             VirtualPath = virtualPath;
-            Table = table;
+            IsDirectory = isDirectory;
             Children = children;
         }
     }

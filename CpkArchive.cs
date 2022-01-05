@@ -55,7 +55,7 @@ namespace Cpk.Net
         /// <exception cref="InvalidDataException">Throw if file is not valid CPK archive</exception>
         public async Task LoadAsync()
         {
-            await using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+            await using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
 
             var header = await Utility.ReadStruct<CpkHeader>(stream);
 
@@ -87,6 +87,19 @@ namespace Cpk.Net
         }
 
         /// <summary>
+        /// Check if file exists inside the archive using the
+        /// virtual path.
+        /// </summary>
+        /// <param name="fileVirtualPath"></param>
+        /// <returns></returns>
+        public bool FileExists(string fileVirtualPath)
+        {
+            CheckIfArchiveLoaded();
+            var crc = _crcHash.ToCrc32Hash(fileVirtualPath.ToLower());
+            return _crcToTableIndexMap.ContainsKey(crc);
+        }
+
+        /// <summary>
         /// Open and create a Stream pointing to the CPK's internal file location
         /// of the given virtual file path and populate the size of the file.
         /// </summary>
@@ -99,43 +112,24 @@ namespace Cpk.Net
         {
             CheckIfArchiveLoaded();
 
-            var crc = _crcHash.ToCrc32Hash(fileVirtualPath);
-            try
+            if (!FileExists(fileVirtualPath))
             {
-                return Open(crc, out size);
-            }
-            catch (ArgumentException)
-            {
-                throw new ArgumentException($"File: {fileVirtualPath} not found.");
-            }
-        }
-
-        /// <summary>
-        /// Open and create a Stream pointing to the CPK's internal file location
-        /// of the given CRC hash and populate the size of the file.
-        /// </summary>
-        /// <param name="crc">File's CRC hash value</param>
-        /// <param name="size">Size of the file</param>
-        /// <returns>A Stream used to read the content</returns>
-        /// <exception cref="ArgumentException">Throw if CRC does not exists</exception>
-        /// <exception cref="InvalidOperationException">Throw if given CRC is a directory</exception>
-        public Stream Open(uint crc, out uint size)
-        {
-            CheckIfArchiveLoaded();
-
-            if (!_crcToTableIndexMap.ContainsKey(crc))
-            {
-                throw new ArgumentException("CRC {crc} not found.");
+                throw new ArgumentException($"<{fileVirtualPath}> does not exists in the archive.");
             }
 
-            var fileName = Encoding.GetEncoding(GbkCodePage).GetString(_fileNameMap[crc]);
+            var crc = _crcHash.ToCrc32Hash(fileVirtualPath.ToLower());
             var table = _tables[_crcToTableIndexMap[crc]];
 
             if (table.IsDirectory())
             {
-                throw new InvalidOperationException($"Failed to open {fileName} since it is a directory.");
+                throw new InvalidOperationException($"Cannot open <{fileVirtualPath}> since it is a directory.");
             }
 
+            return OpenInternal(table, out size);
+        }
+
+        private Stream OpenInternal(CpkTable table, out uint size)
+        {
             FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
             stream.Seek(table.StartPos, SeekOrigin.Begin);
             size = table.PackedSize;
@@ -217,15 +211,15 @@ namespace Cpk.Net
                 var child = _tables[index];
                 var fileName = Encoding.GetEncoding(GbkCodePage).GetString(_fileNameMap[child.CRC]);
 
-                var virtualPath = rootPath + fileName.ToLower();
+                var virtualPath = rootPath + fileName;
 
                 if (child.IsDirectory())
                 {
-                    yield return new CpkEntry(virtualPath, child, GetChildren(child.CRC, virtualPath).ToList());
+                    yield return new CpkEntry(virtualPath, child.IsDirectory(), GetChildren(child.CRC, virtualPath).ToList());
                 }
                 else
                 {
-                    yield return new CpkEntry(virtualPath, child);
+                    yield return new CpkEntry(virtualPath, child.IsDirectory());
                 }
             }
         }

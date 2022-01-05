@@ -42,20 +42,20 @@ void Unpack(IList<CpkEntry> nodes, string rootPath)
 {
     foreach (var node in nodes)
     {
-        // You need to replace CPK directory separator char with 
+        // You need to replace CPK directory separator char with
         // your current system directory separator char.
         // So this code can run anywhere.
         var relativePath = node.VirtualPath.Replace(
             CpkConstants.CpkVirtualDirectorySeparatorChar, Path.DirectorySeparatorChar);
-        
-        if (node.Table.IsDirectory())
+
+        if (node.IsDirectory)
         {
             new DirectoryInfo(rootPath + relativePath).Create();
             Unpack(node.Children, rootPath);
         }
         else
         {
-            using var readStream = cpk.Open(node.Table.CRC, out var size);
+            using var readStream = cpk.Open(node.VirtualPath, out var size);
             using var writeStream = new FileStream(rootPath + relativePath, FileMode.Create, FileAccess.Write);
             CopyStream(readStream, writeStream, (int)size);
             Console.WriteLine($"{node.VirtualPath} unpacked.");

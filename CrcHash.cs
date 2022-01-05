@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Cpk.Net
 {
-    public class CrcHash
+    internal class CrcHash
     {
         private const uint CrcTableMax = 256;
         private const uint Polynomial = 0x04C11DB7; // CRC seed
