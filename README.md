@@ -19,7 +19,7 @@ const string CpkPath = "...";
 const string VirtualFilePath = "..."; // Virtualized/relative file path within CPK archive
 
 var cpk = new CpkArchive(CpkPath);
-cpk.Load();
+await cpk.Load();
 using var stream = cpk.Open(VirtualFilePath, out uint size);
 ...
 ```
@@ -33,24 +33,30 @@ const string CpkPath = "...";
 const string OutputFolderPath = "...";
 
 var cpk = new CpkArchive(CpkPath);
-var rootNodes = cpk.Load().ToList();
+var rootNodes = await cpk.Load();
 Unpack(rootNodes, OutputFolderPath);
 
 void Unpack(IList<CpkEntry> nodes, string rootPath)
 {
     foreach (var node in nodes)
     {
+        // You need to replace CPK directory separator char with 
+        // your current system directory separator char.
+        // So this code can run anywhere.
+        var relativePath = node.VirtualPath.Replace(
+            CpkConstants.CpkVirtualDirectorySeparatorChar, Path.DirectorySeparatorChar);
+        
         if (node.Table.IsDirectory())
         {
-            new DirectoryInfo(rootPath + node.VirtualPath).Create();
+            new DirectoryInfo(rootPath + relativePath).Create();
             Unpack(node.Children, rootPath);
         }
         else
         {
             using var readStream = cpk.Open(node.Table.CRC, out var size);
-            using var writeStream = new FileStream(rootPath + node.VirtualPath,
-                FileMode.Create, FileAccess.Write);
+            using var writeStream = new FileStream(rootPath + relativePath, FileMode.Create, FileAccess.Write);
             CopyStream(readStream, writeStream, (int)size);
+            Console.WriteLine($"{node.VirtualPath} unpacked.");
         }
     }
 }

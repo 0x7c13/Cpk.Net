@@ -6,16 +6,17 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace Cpk.Net
 {
     internal static class Utility
     {
-        internal static T ReadStruct<T>(FileStream stream) where T : struct
+        internal static async Task<T> ReadStruct<T>(FileStream stream) where T : struct
         {
             var structSize = Marshal.SizeOf(typeof(T));
             byte[] buffer = new byte[structSize];
-            stream.Read(buffer);
+            await stream.ReadAsync(buffer);
             return ByteArrayToStruct<T>(buffer);
         }
 

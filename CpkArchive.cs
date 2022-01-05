@@ -9,6 +9,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using lzo.net;
 
 namespace Cpk.Net
@@ -21,8 +22,8 @@ namespace Cpk.Net
     public class CpkArchive
     {
         private const uint SupportedCpkVersion = 1;
-        private const uint CpkLabel = 0x_1A_54_53_52;
-        private const uint CpkDefaultMaxNumOfFile = 32768;	// 每包最多文件个数
+        private const uint CpkLabel = 0x_1A_54_53_52;  // CPK header label
+        private const uint CpkDefaultMaxNumOfFile = 32768;	// Max number of files per archive
         private const int GbkCodePage = 936; // GBK Encoding's code page
         private const int RootCrc = 0;
 
@@ -50,29 +51,27 @@ namespace Cpk.Net
         /// header and index table.
         /// </summary>
         /// <returns>Root level CpkEntry nodes</returns>
-        /// <exception cref="InvalidDataException"></exception>
-        public IList<CpkEntry> Load()
+        /// <exception cref="InvalidDataException">Throw if file is not valid CPK archive</exception>
+        public async Task<IList<CpkEntry>> Load()
         {
-            using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+            await using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
 
-            _header = Utility.ReadStruct<CpkHeader>(stream);
+            _header = await Utility.ReadStruct<CpkHeader>(stream);
 
             if (!IsValidCpkHeader(_header))
             {
                 throw new InvalidDataException($"File: {_filePath} is not a valid CPK file.");
             }
 
-            Console.WriteLine($"CPK Info: Number of entries: {_header.FileNum}");
-
             for (var i = 0; i < _header.MaxFileNum; i++)
             {
-                _tables[i] = Utility.ReadStruct<CpkTable>(stream);
+                _tables[i] = await Utility.ReadStruct<CpkTable>(stream);
             }
 
-            BuildCrcIndexMap();
-            BuildFileNameMap();
+            await Task.Run(BuildCrcIndexMap);
+            await BuildFileNameMap();
 
-            return GetChildren(RootCrc).ToList();
+            return await Task.FromResult(GetChildren(RootCrc).ToList());
         }
 
         /// <summary>
@@ -161,9 +160,9 @@ namespace Cpk.Net
             }
         }
 
-        private void BuildFileNameMap()
+        private async Task BuildFileNameMap()
         {
-            using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+            await using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
 
             foreach (var table in _tables)
             {
@@ -172,7 +171,7 @@ namespace Cpk.Net
                 long extraInfoOffset = table.StartPos + table.PackedSize;
                 var extraInfo = new byte[table.ExtraInfoSize];
                 stream.Seek(extraInfoOffset, SeekOrigin.Begin);
-                stream.Read(extraInfo);
+                await stream.ReadAsync(extraInfo);
 
                 var fileName = Utility.TrimEnd(extraInfo, new byte[] { 0x00, 0x00 });
                 _fileNameMap[table.CRC] = fileName;
