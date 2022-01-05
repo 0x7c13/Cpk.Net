@@ -20,7 +20,7 @@ const string VirtualFilePath = "..."; // Virtualized/relative file path within C
 
 var cpk = new CpkArchive(CpkPath);
 await cpk.LoadAsync();
-await using var stream = cpk.Open(VirtualFilePath, out uint size);
+await using var stream = cpk.Open(VirtualFilePath, out uint size, out bool isCompressed);
 ...
 ```
 
@@ -55,15 +55,15 @@ void Unpack(IList<CpkEntry> nodes, string rootPath)
         }
         else
         {
-            using var readStream = cpk.Open(node.VirtualPath, out var size);
+            using var readStream = cpk.Open(node.VirtualPath, out var size, out var isCompressed);
             using var writeStream = new FileStream(rootPath + relativePath, FileMode.Create, FileAccess.Write);
-            CopyStream(readStream, writeStream, (int)size);
+            CopyStream(readStream, writeStream, (int)size, isCompressed ? size : 32768);
             Console.WriteLine($"{node.VirtualPath} unpacked.");
         }
     }
 }
 
-static void CopyStream(Stream input, Stream output, int length, int bufferSize = 32768)
+static void CopyStream(Stream input, Stream output, int length, uint bufferSize)
 {
     byte[] buffer = new byte[bufferSize];
     int read;

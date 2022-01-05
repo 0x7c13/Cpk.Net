@@ -105,10 +105,11 @@ namespace Cpk.Net
         /// </summary>
         /// <param name="fileVirtualPath">Virtualized file path inside CPK archive</param>
         /// <param name="size">Size of the file</param>
+        /// <param name="isCompressed">True if file is compressed</param>
         /// <returns>A Stream used to read the content</returns>
         /// <exception cref="ArgumentException">Throw if file does not exists</exception>
         /// <exception cref="InvalidOperationException">Throw if given file path is a directory</exception>
-        public Stream Open(string fileVirtualPath, out uint size)
+        public Stream Open(string fileVirtualPath, out uint size, out bool isCompressed)
         {
             CheckIfArchiveLoaded();
 
@@ -125,17 +126,25 @@ namespace Cpk.Net
                 throw new InvalidOperationException($"Cannot open <{fileVirtualPath}> since it is a directory.");
             }
 
-            return OpenInternal(table, out size);
+            return OpenInternal(table, out size, out isCompressed);
         }
 
-        private Stream OpenInternal(CpkTable table, out uint size)
+        private Stream OpenInternal(CpkTable table, out uint size, out bool isCompressed)
         {
             FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
             stream.Seek(table.StartPos, SeekOrigin.Begin);
             size = table.PackedSize;
 
-            if (table.IsCompressed()) return new LzoStream(stream, CompressionMode.Decompress);
-            else return stream;
+            if (table.IsCompressed())
+            {
+                isCompressed = true;
+                return new LzoStream(stream, CompressionMode.Decompress);
+            }
+            else
+            {
+                isCompressed = false;
+                return stream;
+            }
         }
 
         private void CheckIfArchiveLoaded()
