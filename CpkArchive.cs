@@ -133,15 +133,16 @@ namespace Cpk.Net
         {
             FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
             stream.Seek(table.StartPos, SeekOrigin.Begin);
-            size = table.PackedSize;
 
             if (table.IsCompressed())
             {
+                size = table.OriginSize;
                 isCompressed = true;
                 return new LzoStream(stream, CompressionMode.Decompress);
             }
             else
             {
+                size = table.PackedSize;
                 isCompressed = false;
                 return stream;
             }
