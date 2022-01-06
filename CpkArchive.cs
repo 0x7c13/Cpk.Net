@@ -70,8 +70,6 @@ namespace Cpk.Net
             }
 
             await Task.Run(BuildCrcIndexMap);
-            await BuildFileNameMap();
-
             _loaded = true;
         }
 
@@ -83,6 +81,7 @@ namespace Cpk.Net
         public async Task<IList<CpkEntry>> GetRootEntries()
         {
             CheckIfArchiveLoaded();
+            if (_fileNameMap.Count == 0) await BuildFileNameMap();
             return await Task.FromResult(GetChildren(RootCrc).ToList());
         }
 
