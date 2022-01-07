@@ -37,12 +37,13 @@ namespace Cpk.Net
         private readonly CrcHash _crcHash = new CrcHash();
 
         private bool _loaded;
+        private bool _archiveInMemory;
+        private byte[] _archiveData;
 
         public CpkArchive(string cpkFilePath)
         {
             _filePath = cpkFilePath;
             _crcHash.Init();
-
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
         }
 
@@ -52,8 +53,9 @@ namespace Cpk.Net
         /// operations.
         /// </summary>
         /// <returns>Root level CpkEntry nodes</returns>
+        /// <param name="loadIntoMemory">Load archive into memory</param>
         /// <exception cref="InvalidDataException">Throw if file is not valid CPK archive</exception>
-        public async Task LoadAsync()
+        public async Task LoadAsync(bool loadIntoMemory = false)
         {
             await using var stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
 
@@ -70,6 +72,12 @@ namespace Cpk.Net
             }
 
             await Task.Run(BuildCrcIndexMap);
+
+            if (loadIntoMemory)
+            {
+                await LoadArchiveIntoMemoryAsync();
+            }
+
             _loaded = true;
         }
 
@@ -78,7 +86,7 @@ namespace Cpk.Net
         /// and return the root nodes in CpkEntry format
         /// </summary>
         /// <returns>Root level CpkEntry nodes</returns>
-        public async Task<IList<CpkEntry>> GetRootEntries()
+        public async Task<IList<CpkEntry>> GetRootEntriesAsync()
         {
             CheckIfArchiveLoaded();
             if (_fileNameMap.Count == 0) await BuildFileNameMap();
@@ -99,6 +107,49 @@ namespace Cpk.Net
         }
 
         /// <summary>
+        /// Read file and return its content as whole
+        /// </summary>
+        /// <param name="fileVirtualPath">Virtualized file path inside CPK archive</param>
+        /// <returns>File content int byte array</returns>
+        /// <exception cref="ArgumentException">Throw if file does not exists</exception>
+        /// <exception cref="InvalidOperationException">Throw if given file path is a directory</exception>
+        public async Task<byte[]> ReadAsync(string fileVirtualPath)
+        {
+            var table = ValidateAndGetTable(fileVirtualPath);
+
+            Stream stream;
+
+            if (_archiveInMemory)
+            {
+                var start = (int) table.StartPos;
+                var end = (int) (table.StartPos + table.PackedSize);
+                stream = new MemoryStream(_archiveData[start..end]);
+            }
+            else
+            {
+                stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+                stream.Seek(table.StartPos, SeekOrigin.Begin);
+            }
+
+            byte[] buffer;
+            if (table.IsCompressed())
+            {
+                buffer = new byte[table.OriginSize];
+                await using var lzoStream = new LzoStream(stream, CompressionMode.Decompress);
+                await lzoStream.ReadAsync(buffer, 0, (int)table.OriginSize);
+            }
+            else
+            {
+                buffer = new byte[table.PackedSize];
+                await stream.ReadAsync(buffer, 0, (int)table.PackedSize);
+            }
+
+            stream.Close();
+            await stream.DisposeAsync();
+            return buffer;
+        }
+
+        /// <summary>
         /// Open and create a Stream pointing to the CPK's internal file location
         /// of the given virtual file path and populate the size of the file.
         /// </summary>
@@ -109,6 +160,41 @@ namespace Cpk.Net
         /// <exception cref="ArgumentException">Throw if file does not exists</exception>
         /// <exception cref="InvalidOperationException">Throw if given file path is a directory</exception>
         public Stream Open(string fileVirtualPath, out uint size, out bool isCompressed)
+        {
+            var table = ValidateAndGetTable(fileVirtualPath);
+            return OpenInternal(table, out size, out isCompressed);
+        }
+
+        private Stream OpenInternal(CpkTable table, out uint size, out bool isCompressed)
+        {
+            Stream stream;
+            if (_archiveInMemory)
+            {
+                var start = (int) table.StartPos;
+                var end = (int) (table.StartPos + table.PackedSize);
+                stream = new MemoryStream(_archiveData[start..end]);
+            }
+            else
+            {
+                stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+                stream.Seek(table.StartPos, SeekOrigin.Begin);
+            }
+
+            if (table.IsCompressed())
+            {
+                size = table.OriginSize;
+                isCompressed = true;
+                return new LzoStream(stream, CompressionMode.Decompress);
+            }
+            else
+            {
+                size = table.PackedSize;
+                isCompressed = false;
+                return stream;
+            }
+        }
+
+        private CpkTable ValidateAndGetTable(string fileVirtualPath)
         {
             CheckIfArchiveLoaded();
 
@@ -125,26 +211,7 @@ namespace Cpk.Net
                 throw new InvalidOperationException($"Cannot open <{fileVirtualPath}> since it is a directory.");
             }
 
-            return OpenInternal(table, out size, out isCompressed);
-        }
-
-        private Stream OpenInternal(CpkTable table, out uint size, out bool isCompressed)
-        {
-            FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
-            stream.Seek(table.StartPos, SeekOrigin.Begin);
-
-            if (table.IsCompressed())
-            {
-                size = table.OriginSize;
-                isCompressed = true;
-                return new LzoStream(stream, CompressionMode.Decompress);
-            }
-            else
-            {
-                size = table.PackedSize;
-                isCompressed = false;
-                return stream;
-            }
+            return table;
         }
 
         private void CheckIfArchiveLoaded()
@@ -153,6 +220,12 @@ namespace Cpk.Net
             {
                 throw new Exception($"Cpk file not loaded yet. Please call {nameof(LoadAsync)} method before using.");
             }
+        }
+
+        private async Task LoadArchiveIntoMemoryAsync()
+        {
+            _archiveData = await File.ReadAllBytesAsync(_filePath);
+            _archiveInMemory = true;
         }
 
         private static bool IsValidCpkHeader(CpkHeader header)
@@ -189,7 +262,15 @@ namespace Cpk.Net
 
         private async Task BuildFileNameMap()
         {
-            await using FileStream stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+            Stream stream;
+            if (_archiveInMemory)
+            {
+                stream = new MemoryStream(_archiveData);
+            }
+            else
+            {
+                stream = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+            }
 
             foreach (var table in _tables)
             {
@@ -203,6 +284,9 @@ namespace Cpk.Net
                 var fileName = Utility.TrimEnd(extraInfo, new byte[] { 0x00, 0x00 });
                 _fileNameMap[table.CRC] = fileName;
             }
+
+            stream.Close();
+            await stream.DisposeAsync();
         }
 
         private IEnumerable<CpkEntry> GetChildren(uint fatherCrc, string rootPath = "")

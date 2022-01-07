@@ -33,8 +33,8 @@ const string CpkPath = "...";
 const string OutputFolderPath = "...";
 
 var cpk = new CpkArchive(CpkPath);
-await cpk.LoadAsync();
-var rootNodes = await cpk.GetRootEntries();
+await cpk.LoadAsync(loadIntoMemory: true);
+var rootNodes = await cpk.GetRootEntriesAsync();
 
 Unpack(rootNodes, OutputFolderPath);
 
