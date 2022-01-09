@@ -230,7 +230,7 @@ namespace Cpk.Net
 
         private static bool IsValidCpkHeader(CpkHeader header)
         {
-            if (header.Lable != CpkLabel) return false;
+            if (header.Label != CpkLabel) return false;
             if (header.Version != SupportedCpkVersion) return false;
             if (header.TableStart == 0) return false;
             if (header.FileNum > header.MaxFileNum) return false;

@@ -13,7 +13,7 @@ namespace Cpk.Net
     {
         // 类型标志
         [MarshalAs(UnmanagedType.U4)]
-        public uint Lable;
+        public uint Label;
 
         // 版本
         [MarshalAs(UnmanagedType.U4)]
